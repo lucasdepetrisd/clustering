@@ -194,3 +194,30 @@ df.head()
 df['Total'] = df['Quantity'] * df['UnitPrice']
 
 # %%
+print(f"📋 Columnas: {list(df.columns)}")
+
+# %%
+pd.DataFrame(df['UnitPrice'].describe())
+# %%
+df[df['UnitPrice']>50]['Description'].unique().tolist()
+# %%
+sns.distplot(df[df['UnitPrice']>50]['UnitPrice'], kde=False, rug=True);
+
+
+# %%
+customer_country=df[['Country','CustomerID']].drop_duplicates()
+customer_country.groupby(['Country'])['CustomerID'].aggregate('count').reset_index().sort_values('CustomerID', ascending=False)
+
+# %%
+print("Transactions were made in", len(df['Country'].unique().tolist()), "different countries")
+
+
+# %%
+print("Number of transactions where country is unspecified:", len(df[df['Country']=='Unspecified']))
+
+# %%
+plot1 = pd.DataFrame(df.groupby(['Country'])['Total'].sum()).reset_index()
+plot1 = plot1.sort_values(['Total']).reset_index(drop=True)
+plot2 = pd.DataFrame(df.groupby(['Country'])['Total'].count()).reset_index()
+plot2 = plot2.sort_values(['Total']).reset_index(drop=True)
+# %%
