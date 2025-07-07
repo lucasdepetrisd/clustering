@@ -1,38 +1,15 @@
 # %%
-# =============================================================================
-# PARTE 1: PREPARACIÓN DE DATOS
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Celda 1: Importación de Librerías
-# -----------------------------------------------------------------------------
-# Importamos las librerías fundamentales para el análisis:
-# - pandas: Para la manipulación y análisis de datos tabulares (DataFrames).
-# - numpy: Para operaciones numéricas eficientes, especialmente con arrays.
-# - matplotlib.pyplot y seaborn: Para la creación de visualizaciones estáticas y atractivas.
-# - datetime: Para trabajar con fechas y horas.
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import datetime as dt
 
-# Configuramos seaborn para que las gráficas tengan un estilo visual agradable.
-sns.set_style("whitegrid")
-print("Librerías importadas correctamente.")
-
-
-# %%
-# -----------------------------------------------------------------------------
-# Celda 2: Carga del Dataset
-# -----------------------------------------------------------------------------
-# Cargamos el conjunto de datos desde el archivo CSV.
-# Es importante especificar el 'encoding' para evitar problemas con caracteres especiales.
-# 'latin1' es comúnmente usado para este dataset en particular.
-
+# Carga del Dataset
 try:
-    df = pd.read_csv('Online Retail.csv', encoding='latin1')
+    df = pd.read_csv('Online Retail.csv', sep=';', encoding='utf-8-sig', decimal=',')
+    df.columns = df.columns.str.strip()
+
     print("Dataset cargado exitosamente.")
     print("Forma del dataset (filas, columnas):", df.shape)
 except FileNotFoundError:
@@ -40,13 +17,15 @@ except FileNotFoundError:
     print("Por favor, asegúrate de que el archivo esté en el mismo directorio que el script.")
 
 # Mostramos las primeras 5 filas para una inspección inicial.
+print(df.columns.tolist())
+df.columns = df.columns.str.strip()
+print('InvoiceNo' in df.columns)  # → True o False
+
 df.head()
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 3: Inspección Inicial y Limpieza Básica
-# -----------------------------------------------------------------------------
+# Inspección Inicial y Limpieza Básica
 # Obtenemos información general del DataFrame, incluyendo tipos de datos y valores nulos.
 print("Información general del DataFrame:")
 df.info()
@@ -66,15 +45,16 @@ print(f"Filas después de eliminar CustomerID nulos: {df.shape[0]}")
 df['CustomerID'] = df['CustomerID'].astype(int)
 
 # Convertimos 'InvoiceDate' a formato datetime para poder realizar cálculos de tiempo.
-df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
+df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'], dayfirst=True)
+
 
 print("\nLimpieza básica completada: CustomerID nulos eliminados y tipos de datos corregidos.")
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 4: Limpieza de Registros Inválidos
-# -----------------------------------------------------------------------------
+
+# Limpieza de Registros Inválidos
+
 # El dataset contiene registros que no representan una compra real y deben ser eliminados.
 
 # 1. Cantidades negativas ('Quantity' < 0):
@@ -91,9 +71,9 @@ print(f"Filas después de eliminar precios cero: {df.shape[0]}")
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 5: Foco en el Mercado Principal (Reino Unido)
-# -----------------------------------------------------------------------------
+
+# Foco en el Mercado Principal (Reino Unido)
+
 # Como discutimos, analizar un mercado homogéneo produce segmentos más claros y accionables.
 # Dado que la mayoría de los clientes son del Reino Unido, nos enfocaremos en ellos.
 # Esto asegura que nuestras estrategias de marketing propuestas sean consistentes y relevantes.
@@ -107,9 +87,7 @@ print(f"\nAnálisis enfocado en el Reino Unido. Total de filas: {df_uk.shape[0]}
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 6: Eliminación de Duplicados
-# -----------------------------------------------------------------------------
+# Eliminación de Duplicados
 # Verificamos y eliminamos cualquier fila que esté completamente duplicada.
 print(f"Número de filas duplicadas: {df_uk.duplicated().sum()}")
 df_uk.drop_duplicates(inplace=True)
@@ -117,40 +95,45 @@ print(f"Filas después de eliminar duplicados: {df_uk.shape[0]}")
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 7: Creación de Variables RFM (Recency, Frequency, Monetary)
-# -----------------------------------------------------------------------------
+
+# Creación de Variables RFM (Recency, Frequency, Monetary)
+
 # Ahora, calculamos las tres métricas clave para nuestro análisis.
+
+import pandas as pd
+import datetime as dt
+
+# Asegurar tipos correctos
+df_uk['Quantity'] = pd.to_numeric(df_uk['Quantity'], errors='coerce')
+df_uk['UnitPrice'] = pd.to_numeric(df_uk['UnitPrice'], errors='coerce')
+df_uk['InvoiceDate'] = pd.to_datetime(df_uk['InvoiceDate'], dayfirst=True, errors='coerce')
 
 # 1. Calcular el valor monetario de cada transacción.
 df_uk['TotalPrice'] = df_uk['Quantity'] * df_uk['UnitPrice']
 
-# 2. Determinar la "fecha de hoy" para el análisis.
-#    Usamos el día siguiente a la última transacción en el dataset como punto de referencia.
-#    Esto nos permite calcular la recencia para todos los clientes de manera consistente.
+# 2. Definir fecha de snapshot
 snapshot_date = df_uk['InvoiceDate'].max() + dt.timedelta(days=1)
 print(f"Fecha de referencia (snapshot_date) para el análisis: {snapshot_date.date()}")
 
-# 3. Agrupar por cliente para calcular R, F y M.
+# 3. Agrupar para RFM
 rfm = df_uk.groupby('CustomerID').agg({
-    'InvoiceDate': lambda date: (snapshot_date - date.max()).days, # Recency: Días desde la última compra.
-    'InvoiceNo': 'nunique',                                       # Frequency: Número de facturas únicas.
-    'TotalPrice': 'sum'                                           # Monetary: Suma total del dinero gastado.
+    'InvoiceDate': lambda date: (snapshot_date - date.max()).days,
+    'InvoiceNo': 'nunique',
+    'TotalPrice': 'sum'
+}).rename(columns={
+    'InvoiceDate': 'Recency',
+    'InvoiceNo': 'Frequency',
+    'TotalPrice': 'MonetaryValue'
 })
 
-# Renombramos las columnas para mayor claridad.
-rfm.rename(columns={'InvoiceDate': 'Recency',
-                    'InvoiceNo': 'Frequency',
-                    'TotalPrice': 'MonetaryValue'}, inplace=True)
-
 print("\nDataFrame RFM creado exitosamente:")
-rfm.head()
+print(rfm.head())
+
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 8: Visualización de las Variables RFM ANTES del Escalado
-# -----------------------------------------------------------------------------
+
+#  Visualización de las Variables RFM ANTES del Escalado
 # Antes de aplicar clustering, es crucial entender la distribución de nuestras variables.
 # Los algoritmos basados en distancia son sensibles a la escala y al sesgo de los datos.
 
@@ -180,9 +163,8 @@ print("Frequency y Monetary tienen rangos muy diferentes a Recency. El escalado 
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 9: Aplicación de Escalado para Clustering
-# -----------------------------------------------------------------------------
+
+# Aplicación de Escalado para Clustering
 # Para que el algoritmo de clustering funcione correctamente, debemos pre-procesar los datos.
 # Realizamos un proceso de dos pasos:
 # 1. Transformación Logarítmica: Para reducir el sesgo a la derecha. Usamos log1p
@@ -213,9 +195,8 @@ rfm_scaled.head()
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 10: Visualización de las Variables RFM DESPUÉS del Escalado
-# -----------------------------------------------------------------------------
+
+# Visualización de las Variables RFM DESPUÉS del Escalado
 # Ahora visualizamos las distribuciones después del pre-procesamiento.
 # Deberíamos ver distribuciones mucho más simétricas y centradas en cero.
 
@@ -243,27 +224,18 @@ plt.show()
 print("Observación: Las distribuciones ahora son mucho más 'normales' y están en la misma escala.")
 print("El dataset 'rfm_scaled' está listo para ser utilizado en los algoritmos de clustering.")
 
+
 # %%
-# =============================================================================
-# FIN DE LA PARTE 1
-# =============================================================================
-# Hemos completado la preparación de datos. Tenemos dos DataFrames importantes:
-# 1. 'rfm': Contiene los valores originales de Recency, Frequency y Monetary. Lo usaremos para interpretar los clusters.
-# 2. 'rfm_scaled': Contiene los valores escalados. Lo usaremos para entrenar los modelos de clustering.
-#
-# Cuando estés listo, continuaremos con la Parte 2: Aplicación de Clustering.
-# %%
-# =============================================================================
-# PARTE 2: APLICACIÓN Y EVALUACIÓN DE ALGORITMOS DE CLUSTERING
-# =============================================================================
+
+# APLICACIÓN Y EVALUACIÓN DE ALGORITMOS DE CLUSTERING
 # En esta sección, aplicaremos tres algoritmos de clustering diferentes a nuestros
 # datos RFM escalados. Usaremos métodos cuantitativos para determinar los
 # hiperparámetros óptimos y para comparar el rendimiento de los modelos.
 
-# -----------------------------------------------------------------------------
-# Celda 11: Importación de Librerías de Clustering y Métricas
-# -----------------------------------------------------------------------------
+
 # Importamos los modelos de clustering y las métricas de evaluación que usaremos.
+
+
 from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 from sklearn.neighbors import NearestNeighbors
@@ -274,15 +246,8 @@ X = rfm_scaled.copy()
 
 print("Librerías y datos para clustering listos.")
 
-
-# %%
-# =============================================================================
 # ALGORITMO 1: K-MEANS
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# Celda 12: Determinación del Número Óptimo de Clusters (k) para K-Means
-# -----------------------------------------------------------------------------
+# Determinación del Número Óptimo de Clusters (k) para K-Means
 # Para K-Means, el hiperparámetro más importante es 'k' (el número de clusters).
 # Usaremos dos métodos populares para encontrar un 'k' óptimo:
 # 1. Método del Codo (Elbow Method): Busca el punto donde la reducción de la inercia
@@ -334,10 +299,8 @@ print(f"Justificación: Basado en el método del codo y la puntuación de siluet
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 13: Aplicación de K-Means con el k óptimo
-# -----------------------------------------------------------------------------
-# Ahora aplicamos el algoritmo K-Means con k=4.
+
+# Aplicación de K-Means con el k óptimo
 
 kmeans = KMeans(n_clusters=k_optimal, random_state=42, n_init='auto')
 kmeans_labels = kmeans.fit_predict(X)
@@ -349,13 +312,9 @@ print(rfm['KMeans_Cluster'].value_counts())
 
 
 # %%
-# =============================================================================
-# ALGORITMO 2: CLUSTERING JERÁRQUICO AGLOMERATIVO
-# =============================================================================
 
-# -----------------------------------------------------------------------------
-# Celda 14: Visualización del Dendrograma
-# -----------------------------------------------------------------------------
+# ALGORITMO 2: CLUSTERING JERÁRQUICO AGLOMERATIVO
+#  Visualización del Dendrograma:
 # El clustering aglomerativo construye una jerarquía de clusters. El dendrograma
 # nos ayuda a visualizar esta estructura y decidir dónde "cortar" para formar los clusters.
 # 'ward' es un método de enlace que minimiza la varianza dentro de cada cluster.
@@ -384,9 +343,8 @@ plt.show()
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 15: Aplicación de Clustering Aglomerativo
-# -----------------------------------------------------------------------------
+
+# Aplicación de Clustering Aglomerativo
 # Aplicamos el modelo con el mismo número de clusters que K-Means (k=4) para una
 # comparación justa.
 
@@ -400,13 +358,9 @@ print(rfm['Agg_Cluster'].value_counts())
 
 
 # %%
-# =============================================================================
-# ALGORITMO 3: DBSCAN
-# =============================================================================
 
-# -----------------------------------------------------------------------------
-# Celda 16: Determinación de Hiperparámetros para DBSCAN (eps y min_samples)
-# -----------------------------------------------------------------------------
+# ALGORITMO 3: DBSCAN
+# Determinación de Hiperparámetros para DBSCAN (eps y min_samples)
 # DBSCAN tiene dos hiperparámetros:
 # - min_samples: El número mínimo de puntos para formar una región densa. Una regla
 #   general es usar 2 * número_de_dimensiones. En nuestro caso, 2 * 3 = 6.
@@ -441,9 +395,9 @@ print(f"Justificación: min_samples={min_samples_dbscan}. El gráfico k-distance
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 17: Aplicación de DBSCAN
-# -----------------------------------------------------------------------------
+
+# Aplicación de DBSCAN
+
 # DBSCAN es diferente porque puede identificar puntos como "ruido" (etiquetados como -1),
 # lo cual es muy útil para encontrar anomalías.
 
@@ -459,13 +413,10 @@ print(pd.Series(dbscan_labels).value_counts())
 
 
 # %%
-# =============================================================================
 # COMPARACIÓN DE MODELOS CON MÉTRICAS INTERNAS
-# =============================================================================
 
-# -----------------------------------------------------------------------------
-# Celda 18: Cálculo y Comparación de Métricas
-# -----------------------------------------------------------------------------
+# Cálculo y Comparación de Métricas
+
 # Ahora comparamos los resultados de los tres algoritmos utilizando las métricas
 # internas que no requieren etiquetas verdaderas.
 # - Silhouette Score: Más alto es mejor.
@@ -474,8 +425,10 @@ print(pd.Series(dbscan_labels).value_counts())
 
 # Para DBSCAN, solo evaluamos los puntos que no son ruido.
 dbscan_mask = dbscan_labels != -1
-if np.sum(dbscan_mask) < 2: # No se pueden calcular métricas si hay menos de 2 clusters o puntos
-    print("DBSCAN encontró muy pocos puntos de cluster para evaluar.")
+unique_labels = set(dbscan_labels[dbscan_mask])  # Etiquetas de clusters sin ruido
+
+if len(unique_labels) < 2:
+    print("DBSCAN encontró menos de 2 clusters para evaluar.")
     dbscan_metrics = [np.nan, np.nan, np.nan]
 else:
     dbscan_metrics = [
@@ -503,11 +456,8 @@ comparison_df = pd.DataFrame(comparison_data, index=['Silhouette', 'Calinski-Har
 print("Tabla de Comparación de Métricas de Clustering:")
 print(comparison_df.round(3))
 
+# Elección del Mejor Modelo
 
-# %%
-# -----------------------------------------------------------------------------
-# Celda 19: Elección del Mejor Modelo
-# -----------------------------------------------------------------------------
 # JUSTIFICACIÓN DE LA ELECCIÓN:
 #
 # Al analizar la tabla de comparación, observamos lo siguiente:
@@ -535,16 +485,15 @@ print("\nModelo elegido para la siguiente fase: K-Means.")
 # Hemos aplicado y evaluado tres algoritmos de clustering, eligiendo K-Means
 # como el más adecuado para nuestro problema de negocio.
 # %%
-# =============================================================================
-# PARTE 3: ANÁLISIS, INTERPRETACIÓN Y ACCIONES DE MARKETING
-# =============================================================================
+
+#  ANÁLISIS, INTERPRETACIÓN Y ACCIONES DE MARKETING
+
 # En esta fase final, tomamos los clusters generados por nuestro modelo elegido (K-Means)
 # y les damos un significado de negocio. El objetivo es entender quiénes son los
 # clientes en cada grupo y cómo podemos comunicarnos con ellos de manera efectiva.
 
-# -----------------------------------------------------------------------------
-# Celda 20: Importación de Librerías Adicionales
-# -----------------------------------------------------------------------------
+# Importación de Librerías Adicionales
+
 # Importamos PCA de scikit-learn para la reducción de dimensionalidad,
 # lo que nos permitirá visualizar los clusters en un gráfico 2D.
 from sklearn.decomposition import PCA
@@ -552,10 +501,8 @@ from sklearn.decomposition import PCA
 print("Librerías para análisis y visualización de clusters listas.")
 
 
-# %%
-# -----------------------------------------------------------------------------
 # Celda 21: Perfilado de Clusters
-# -----------------------------------------------------------------------------
+
 # Para entender qué caracteriza a cada cluster, calculamos la media de las
 # variables RFM originales (NO las escaladas) para cada grupo. También contamos
 # cuántos clientes hay en cada cluster.
@@ -583,9 +530,9 @@ print(cluster_profile.round(2))
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 22: Visualización de Perfiles de Clusters (Gráfico de Serpiente)
-# -----------------------------------------------------------------------------
+
+# Visualización de Perfiles de Clusters (Gráfico de Serpiente)
+
 # Un gráfico de serpiente (snake plot) es una excelente manera de comparar los
 # atributos de cada segmento. Usaremos los datos escalados para que todas las
 # variables estén en la misma escala y sean comparables.
@@ -613,9 +560,9 @@ plt.show()
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 23: Etiquetado de Clusters y Definición de Personas
-# -----------------------------------------------------------------------------
+
+# Etiquetado de Clusters y Definición de Personas
+
 # Basado en el perfil numérico y el gráfico de serpiente, asignamos etiquetas
 # descriptivas a cada cluster. Esto los convierte en "personas" accionables.
 
@@ -644,9 +591,9 @@ print(rfm.head())
 
 
 # %%
-# -----------------------------------------------------------------------------
-# Celda 24: Visualización de Clusters con PCA
-# -----------------------------------------------------------------------------
+
+# Visualización de Clusters con PCA
+
 # Reducimos las 3 dimensiones de RFM a 2 componentes principales (PCA)
 # para poder visualizar la separación de los clusters en un gráfico de dispersión.
 
@@ -673,7 +620,7 @@ plt.show()
 
 # %%
 # -----------------------------------------------------------------------------
-# Celda 25: Propuesta de Acciones de Marketing Personalizadas
+# Propuesta de Acciones de Marketing Personalizadas
 # -----------------------------------------------------------------------------
 # Esta es la culminación de nuestro análisis. Proponemos acciones específicas
 # para los segmentos más relevantes, conectando los datos con la estrategia de negocio.
@@ -720,3 +667,5 @@ print("     2. Encuesta de Feedback: Preguntarles por qué no han vuelto. La inf
 print("     3. Exclusión de Campañas de Alto Coste: No invertir demasiado en este grupo; centrar los esfuerzos en los segmentos más activos.")
 
 print("\n"+"="*60)
+
+# %%
