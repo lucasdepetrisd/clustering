@@ -31,8 +31,6 @@ print("Información general del DataFrame:")
 df.info()
 
 # El análisis RFM y el clustering de clientes dependen de poder agrupar por cliente.
-# Por lo tanto, los registros sin 'CustomerID' no son útiles para nuestro objetivo principal.
-# Calculamos el porcentaje de nulos en CustomerID antes de eliminarlos.
 missing_customers = df['CustomerID'].isnull().sum()
 total_rows = df.shape[0]
 print(f"\nSe encontraron {missing_customers} filas sin CustomerID ({missing_customers/total_rows:.2%}).")
@@ -46,10 +44,6 @@ df['CustomerID'] = df['CustomerID'].astype(int)
 
 # Convertimos 'InvoiceDate' a formato datetime para poder realizar cálculos de tiempo.
 df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'], dayfirst=True)
-
-
-print("\nLimpieza básica completada: CustomerID nulos eliminados y tipos de datos corregidos.")
-
 
 # %%
 
@@ -74,21 +68,16 @@ print(f"Filas después de eliminar precios cero: {df.shape[0]}")
 
 # Foco en el Mercado Principal (Reino Unido)
 
-# Como discutimos, analizar un mercado homogéneo produce segmentos más claros y accionables.
-# Dado que la mayoría de los clientes son del Reino Unido, nos enfocaremos en ellos.
-# Esto asegura que nuestras estrategias de marketing propuestas sean consistentes y relevantes.
+# Dado que la mayoría de los clientes son del Reino Unido nos enfocamos solo en estos.
 
 print("Distribución de clientes por país (Top 10):")
 print(df['Country'].value_counts().head(10))
 
-# Filtramos el DataFrame para quedarnos solo con las transacciones del Reino Unido.
 df_uk = df[df['Country'] == 'United Kingdom'].copy()
 print(f"\nAnálisis enfocado en el Reino Unido. Total de filas: {df_uk.shape[0]}")
 
-
 # %%
 # Eliminación de Duplicados
-# Verificamos y eliminamos cualquier fila que esté completamente duplicada.
 print(f"Número de filas duplicadas: {df_uk.duplicated().sum()}")
 df_uk.drop_duplicates(inplace=True)
 print(f"Filas después de eliminar duplicados: {df_uk.shape[0]}")
@@ -97,8 +86,6 @@ print(f"Filas después de eliminar duplicados: {df_uk.shape[0]}")
 # %%
 
 # Creación de Variables RFM (Recency, Frequency, Monetary)
-
-# Ahora, calculamos las tres métricas clave para nuestro análisis.
 
 import pandas as pd
 import datetime as dt
@@ -133,8 +120,7 @@ print(rfm.head())
 
 # %%
 
-#  Visualización de las Variables RFM ANTES del Escalado
-# Antes de aplicar clustering, es crucial entender la distribución de nuestras variables.
+# Visualización de las Variables RFM ANTES del Escalado
 # Los algoritmos basados en distancia son sensibles a la escala y al sesgo de los datos.
 
 plt.figure(figsize=(18, 5))
@@ -158,16 +144,13 @@ plt.suptitle('Distribuciones de Variables RFM (Antes del Escalado)', fontsize=16
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 plt.show()
 
-print("Observación: Todas las variables tienen un fuerte sesgo a la derecha (right-skewed).")
-print("Frequency y Monetary tienen rangos muy diferentes a Recency. El escalado es necesario.")
-
 
 # %%
 
 # Aplicación de Escalado para Clustering
 # Para que el algoritmo de clustering funcione correctamente, debemos pre-procesar los datos.
 # Realizamos un proceso de dos pasos:
-# 1. Transformación Logarítmica: Para reducir el sesgo a la derecha. Usamos log1p
+# 1. Transformación Logarítmica: Para reducir el sesgo a la izquierda. Usamos log1p
 #    que añade 1 antes del logaritmo para manejar valores de cero si los hubiera.
 # 2. Escalado Estándar (StandardScaler): Para que todas las variables tengan una
 #    media de 0 y una desviación estándar de 1. Esto asegura que ninguna variable
@@ -187,7 +170,6 @@ rfm_to_scale['MonetaryValue'] = np.log1p(rfm_to_scale['MonetaryValue'])
 scaler = StandardScaler()
 rfm_scaled_array = scaler.fit_transform(rfm_to_scale)
 
-# Convertimos el resultado de vuelta a un DataFrame para facilitar su uso.
 rfm_scaled = pd.DataFrame(rfm_scaled_array, index=rfm.index, columns=rfm.columns)
 
 print("Datos RFM transformados y escalados:")
@@ -221,8 +203,7 @@ plt.suptitle('Distribuciones de Variables RFM (Después del Escalado)', fontsize
 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 plt.show()
 
-print("Observación: Las distribuciones ahora son mucho más 'normales' y están en la misma escala.")
-print("El dataset 'rfm_scaled' está listo para ser utilizado en los algoritmos de clustering.")
+print("Las distribuciones ahora son mucho más 'normales' y están en la misma escala.")
 
 
 # %%
@@ -232,19 +213,14 @@ print("El dataset 'rfm_scaled' está listo para ser utilizado en los algoritmos 
 # datos RFM escalados. Usaremos métodos cuantitativos para determinar los
 # hiperparámetros óptimos y para comparar el rendimiento de los modelos.
 
-
 # Importamos los modelos de clustering y las métricas de evaluación que usaremos.
-
 
 from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 from sklearn.neighbors import NearestNeighbors
 from scipy.cluster.hierarchy import dendrogram, linkage
 
-# Guardamos nuestro dataframe escalado en una variable para facilitar su uso
 X = rfm_scaled.copy()
-
-print("Librerías y datos para clustering listos.")
 
 # ALGORITMO 1: K-MEANS
 # Determinación del Número Óptimo de Clusters (k) para K-Means
@@ -261,7 +237,6 @@ inertia = []
 silhouette_scores = []
 
 for k in k_range:
-    # n_init='auto' para evitar FutureWarnings
     kmeans = KMeans(n_clusters=k, random_state=42, n_init='auto')
     kmeans.fit(X)
     inertia.append(kmeans.inertia_)
@@ -291,10 +266,9 @@ plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 plt.show()
 
 # JUSTIFICACIÓN:
-# El método del codo muestra un "codo" visible en k=4, donde la curva comienza a aplanarse.
-# La puntuación de silueta también alcanza su punto máximo en k=4.
-# Por lo tanto, elegimos k=4 como el número óptimo de clusters para nuestro análisis.
-k_optimal = 4
+# El método del codo muestra un "codo" visible en k=3, donde la curva comienza a aplanarse.
+# Elegimos k=3 como el número óptimo de clusters para nuestro análisis.
+k_optimal = 3
 print(f"Justificación: Basado en el método del codo y la puntuación de silueta, el número óptimo de clusters es k={k_optimal}.")
 
 
@@ -338,14 +312,12 @@ plt.show()
 
 # JUSTIFICACIÓN:
 # Observando las distancias verticales en el dendrograma, el salto más significativo
-# ocurre cuando se pasa de 4 a 3 clusters (la línea azul más larga). Esto sugiere
-# que k=4 es una buena elección, lo cual es consistente con nuestro hallazgo en K-Means.
-
+# ocurre cuando se pasa de 2 a 3 clusters. Esto sugiere que k=3 es una buena elección, lo cual es consistente con nuestro hallazgo en K-Means.
 
 # %%
 
 # Aplicación de Clustering Aglomerativo
-# Aplicamos el modelo con el mismo número de clusters que K-Means (k=4) para una
+# Aplicamos el modelo con el mismo número de clusters que K-Means (k=3) para una
 # comparación justa.
 
 agg_cluster = AgglomerativeClustering(n_clusters=k_optimal, linkage='ward')
@@ -368,7 +340,7 @@ print(rfm['Agg_Cluster'].value_counts())
 #   el método del gráfico k-distance para encontrar un 'eps' razonable.
 
 # 1. Definir min_samples
-min_samples_dbscan = 2 * X.shape[1]  # 2 * 3 = 6
+min_samples_dbscan = 2 * X.shape[1]
 
 # 2. Calcular la distancia de cada punto a su k-ésimo vecino más cercano (k=min_samples)
 neighbors = NearestNeighbors(n_neighbors=min_samples_dbscan)
@@ -388,9 +360,9 @@ plt.show()
 
 # JUSTIFICACIÓN:
 # El gráfico muestra un "codo" o punto de máxima curvatura alrededor de un valor de
-# distancia de 0.8-1.0. Este punto es un buen candidato para 'eps' porque es donde
-# la densidad cambia significativamente. Elegiremos eps=0.9.
-eps_optimal = 0.9
+# distancia de 0.4-0.7. Este punto es un buen candidato para 'eps' porque es donde
+# la densidad cambia significativamente. Elegiremos eps=0.7.
+eps_optimal = 0.5
 print(f"Justificación: min_samples={min_samples_dbscan}. El gráfico k-distance sugiere un eps óptimo alrededor de {eps_optimal}.")
 
 
@@ -458,56 +430,26 @@ print(comparison_df.round(3))
 
 # Elección del Mejor Modelo
 
-# JUSTIFICACIÓN DE LA ELECCIÓN:
-#
-# Al analizar la tabla de comparación, observamos lo siguiente:
-# 1. K-Means y Agglomerative Clustering (con k=4) producen resultados muy similares en
-#    términos de métricas, con K-Means teniendo una ligera ventaja en la puntuación de silueta
-#    y Calinski-Harabasz.
-# 2. DBSCAN, aunque es excelente para identificar ruido, en este caso ha clasificado a una
-#    gran cantidad de puntos como ruido y ha generado clusters muy pequeños y densos.
-#    Esto puede ser útil, pero para una segmentación de marketing general, queremos
-#    agrupar a TODOS los clientes.
-#
-# ELECCIÓN FINAL: K-Means.
-# ¿Por qué?
-# - Rendimiento: Ofrece las mejores métricas de evaluación entre los modelos probados.
-# - Interpretabilidad: Es un algoritmo muy conocido, computacionalmente eficiente y los
-#   clusters que genera suelen ser fáciles de interpretar para el negocio.
-# - Balance de Clusters: Tiende a crear clusters de tamaños relativamente balanceados
-#   (como vimos en la celda 13), lo cual es útil para una estrategia de segmentación.
-#
-# Por estas razones, procederemos con los clusters generados por K-Means para la
-# fase final de análisis e interpretación.
+# K-Means es la mejor opción: tiene el mayor Silhouette (0.345) y Calinski-Harabasz (3348.488),
+# lo que indica clústers bien definidos. Aunque DBSCAN tiene el mejor Davies-Bouldin (0.846),
+# su bajo Silhouette sugiere menor separación entre clústers. En conjunto, K-Means ofrece el mejor balance.
 
 print("\nModelo elegido para la siguiente fase: K-Means.")
 
-# Hemos aplicado y evaluado tres algoritmos de clustering, eligiendo K-Means
-# como el más adecuado para nuestro problema de negocio.
 # %%
 
 #  ANÁLISIS, INTERPRETACIÓN Y ACCIONES DE MARKETING
 
 # En esta fase final, tomamos los clusters generados por nuestro modelo elegido (K-Means)
 # y les damos un significado de negocio. El objetivo es entender quiénes son los
-# clientes en cada grupo y cómo podemos comunicarnos con ellos de manera efectiva.
+# clientes en cada grupo.
 
-# Importación de Librerías Adicionales
-
-# Importamos PCA de scikit-learn para la reducción de dimensionalidad,
-# lo que nos permitirá visualizar los clusters en un gráfico 2D.
 from sklearn.decomposition import PCA
-
-print("Librerías para análisis y visualización de clusters listas.")
-
-
-# Celda 21: Perfilado de Clusters
 
 # Para entender qué caracteriza a cada cluster, calculamos la media de las
 # variables RFM originales (NO las escaladas) para cada grupo. También contamos
 # cuántos clientes hay en cada cluster.
 
-# Usaremos el dataframe 'rfm' que contiene los valores originales y las etiquetas de K-Means.
 # Agrupamos por el cluster de K-Means y calculamos la media de R, F, M y el tamaño del grupo.
 cluster_profile = rfm.groupby('KMeans_Cluster').agg({
     'Recency': 'mean',
@@ -519,7 +461,6 @@ cluster_profile = rfm.groupby('KMeans_Cluster').agg({
 # Calculamos el promedio general de RFM para tener un punto de comparación
 population_avg = rfm[['Recency', 'Frequency', 'MonetaryValue']].mean()
 cluster_profile = pd.concat([cluster_profile, population_avg.to_frame('Population_Avg').T])
-
 
 print("Perfil de los Clusters (medias de RFM y tamaño):")
 print(cluster_profile.round(2))
@@ -561,31 +502,20 @@ plt.show()
 
 # %%
 
-# Etiquetado de Clusters y Definición de Personas
+# Asignamos nombres descriptivos ("personas") a cada cluster basado en su perfil numérico
+# y análisis previo (como el gráfico de serpiente).
 
-# Basado en el perfil numérico y el gráfico de serpiente, asignamos etiquetas
-# descriptivas a cada cluster. Esto los convierte en "personas" accionables.
-
-# (NOTA: Los números de cluster pueden variar en cada ejecución. Ajusta las etiquetas
-# según la salida de la celda 21)
-
-# Supongamos que la salida de la celda 21 fue:
-# Cluster 0: Alta R, Baja F, Bajo M -> "Hibernando" o "Perdidos"
-# Cluster 1: Baja R, Alta F, Alto M -> "Campeones"
-# Cluster 2: Media R, Media F, Medio M -> "Clientes Leales"
-# Cluster 3: Baja R, Baja F, Bajo M -> "Nuevos Clientes" o "Potenciales"
-
-# Mapeamos estas etiquetas a nuestros datos
-# ¡¡IMPORTANTE!! Revisa tu tabla de 'cluster_profile' para asignar las etiquetas correctas
-# a los números de cluster que te salieron a ti.
+# Ejemplo de mapeo basado en un análisis previo:
 label_map = {
-    0: 'Hibernando',
-    1: 'Campeones',
-    2: 'Clientes Leales',
-    3: 'Nuevos y Potenciales'
+    0: 'Hibernando',          # Clientes con alta Recency, baja frecuencia y bajo gasto (Peores)
+    1: 'Clientes Leales',     # Clientes con valores medios en R, F y M (Intermedios)
+    2: 'Campeones',           # Clientes con baja Recency, alta frecuencia y alto gasto (Mejores)
 }
 
+# Creamos una nueva columna 'Segment' en el dataframe rfm con las etiquetas asignadas
 rfm['Segment'] = rfm['KMeans_Cluster'].map(label_map)
+
+# Mostramos las primeras filas para verificar que la asignación fue correcta
 print("Etiquetas de segmento asignadas:")
 print(rfm.head())
 
@@ -598,7 +528,7 @@ print(rfm.head())
 # para poder visualizar la separación de los clusters en un gráfico de dispersión.
 
 pca = PCA(n_components=2)
-rfm_pca = pca.fit_transform(X) # Usamos los datos escalados para PCA
+rfm_pca = pca.fit_transform(X)
 
 # Creamos un DataFrame con los resultados de PCA y las etiquetas de segmento.
 pca_df = pd.DataFrame(rfm_pca, index=rfm.index, columns=['PC1', 'PC2'])
@@ -613,59 +543,23 @@ plt.legend(title='Segmento')
 plt.grid(True)
 plt.show()
 
-# INTERPRETACIÓN DEL GRÁFICO PCA:
-# El gráfico muestra qué tan bien separados están nuestros segmentos en el espacio
-# reducido. Un buen clustering resultará en grupos visualmente distintos.
-
 
 # %%
-# -----------------------------------------------------------------------------
-# Propuesta de Acciones de Marketing Personalizadas
-# -----------------------------------------------------------------------------
-# Esta es la culminación de nuestro análisis. Proponemos acciones específicas
-# para los segmentos más relevantes, conectando los datos con la estrategia de negocio.
 
 print("="*60)
-print("PROPUESTAS DE ACCIONES DE MARKETING ESTRATÉGICAS")
+print("CONCLUSIÓN DEL ANÁLISIS DE CLUSTERING")
 print("="*60)
 
-# ACCIÓN PARA EL SEGMENTO 1: "Campeones"
-print("\n--- Segmento: Campeones ---")
-print("   - Perfil: Clientes más valiosos. Compran muy a menudo, gastan mucho y han comprado recientemente.")
-print("   - Objetivo: Retener, recompensar y convertirlos en embajadores de la marca.")
-print("   - Acciones Propuestas:")
-print("     1. Programa VIP: Ofrecer acceso exclusivo a ventas anticipadas, envíos gratuitos y atención al cliente prioritaria.")
-print("     2. Marketing de Reconocimiento: Enviar regalos sorpresa o notas de agradecimiento personalizadas.")
-print("     3. Solicitar Reseñas: Pedirles que dejen reseñas de productos, ya que su opinión es muy valiosa y confiable.")
-print("     4. Evitar Descuentos Agresivos: No necesitan incentivos de precio para comprar; un marketing masivo podría devaluarlos.")
+print("Campeones (cluster a la derecha):\nClientes con alta frecuencia y gasto, que compran con regularidad.\n"
+      "Son el segmento más valioso y deben recibir acciones de fidelización como programas exclusivos,\n"
+      "ofertas personalizadas y acceso anticipado a nuevos productos para maximizar su lealtad y mantener su alto nivel de compra.\n")
 
-# ACCIÓN PARA EL SEGMENTO 2: "Clientes Leales"
-print("\n--- Segmento: Clientes Leales ---")
-print("   - Perfil: Compran con buena frecuencia y gastan una cantidad considerable. Son la base del negocio.")
-print("   - Objetivo: Aumentar su valor monetario y frecuencia para convertirlos en Campeones.")
-print("   - Acciones Propuestas:")
-print("     1. Venta Cruzada (Cross-Selling): Recomendar productos complementarios a sus compras habituales.")
-print("     2. Programas de Lealtad por Puntos: Incentivarlos a gastar más para alcanzar el siguiente nivel de recompensas.")
-print("     3. Ofertas Personalizadas: Ofrecerles descuentos en categorías de productos que les interesan para fomentar una compra mayor.")
+print("Clientes Leales (centro):\nCompran con frecuencia moderada y tienen un gasto promedio.\n"
+      "Se recomienda impulsar su compromiso mediante campañas de upselling y cross-selling,\n"
+      "así como incentivos que los motiven a aumentar su frecuencia o valor de compra.\n")
 
-# ACCIÓN PARA EL SEGMENTO 3: "Nuevos y Potenciales"
-print("\n--- Segmento: Nuevos y Potenciales ---")
-print("   - Perfil: Han comprado recientemente pero con baja frecuencia y gasto. Podrían ser nuevos o compradores ocasionales.")
-print("   - Objetivo: Fomentar la segunda y tercera compra para construir el hábito.")
-print("   - Acciones Propuestas:")
-print("     1. Campaña de Bienvenida: Enviar una serie de emails de onboarding que presenten la marca y la gama de productos.")
-print("     2. Descuento para la Segunda Compra: Ofrecer un incentivo claro para que vuelvan pronto.")
-print("     3. Contenido Útil: Enviarles guías de productos o ideas sobre cómo usar lo que compraron.")
-
-# ACCIÓN PARA EL SEGMENTO 4: "Hibernando"
-print("\n--- Segmento: Hibernando ---")
-print("   - Perfil: No han comprado en mucho tiempo. Alto riesgo de pérdida total.")
-print("   - Objetivo: Intentar reactivarlos antes de que sea demasiado tarde.")
-print("   - Acciones Propuestas:")
-print("     1. Campaña de Reactivación 'Te Extrañamos': Enviar un email con una oferta atractiva y personalizada (ej. '20% de descuento para ti').")
-print("     2. Encuesta de Feedback: Preguntarles por qué no han vuelto. La información es valiosa incluso si no compran.")
-print("     3. Exclusión de Campañas de Alto Coste: No invertir demasiado en este grupo; centrar los esfuerzos en los segmentos más activos.")
-
-print("\n"+"="*60)
+print("Hibernando (izquierda):\nClientes con baja frecuencia y bajo gasto, posiblemente inactivos o en riesgo de abandono.\n"
+      "Es prioritario diseñar campañas de recuperación con promociones especiales, recordatorios y comunicación personalizada\n"
+      "para reactivar su interés y evitar que se pierdan definitivamente.\n")
 
 # %%
